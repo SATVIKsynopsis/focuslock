@@ -1,0 +1,879 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FocusLock</title>
+<style>
+  :root {
+    --bg: #0A0A0B;
+    --surface: #141416;
+    --surface-2: #1C1C1F;
+    --line: #2A2A2E;
+    --text: #F2F2F0;
+    --muted: #8A8A8E;
+    --accent: #C6FF3D;
+    --accent-ink: #0A0A0B;
+    --danger: #FF4D2E;
+    --radius: 12px;
+    --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", system-ui, sans-serif;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--bg); color: var(--text); font: 14px/1.45 var(--sans);
+    -webkit-font-smoothing: antialiased; user-select: none; -webkit-user-select: none;
+  }
+  input, textarea { user-select: text; -webkit-user-select: text; }
+  button, input { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+
+  .app { display: grid; grid-template-columns: 216px 1fr; height: 100vh; }
+
+  .side {
+    background: var(--surface); border-right: 1px solid var(--line);
+    display: flex; flex-direction: column; padding: 18px 12px; gap: 4px; min-height: 0;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; padding: 0 8px 18px; font-weight: 700; font-size: 15px; }
+  .brand img { width: 30px; height: 30px; }
+  .nav {
+    display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+    background: none; border: 0; padding: 8px 10px; border-radius: 8px; cursor: pointer; color: var(--muted);
+  }
+  .nav:hover { background: var(--surface-2); color: var(--text); }
+  .nav[aria-current="page"] { background: var(--surface-2); color: var(--text); }
+  .nav[aria-current="page"] .dot { background: var(--accent); }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--line); flex: none; }
+  .side .spacer { flex: 1; }
+
+  .session {
+    background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 14px; display: grid; gap: 10px;
+  }
+  .session .label { font: 11px/1 var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+  .session .time { font: 600 30px/1 var(--mono); font-variant-numeric: tabular-nums; color: var(--accent); }
+  .session .time.idle { color: var(--muted); font-size: 15px; font-family: var(--sans); font-weight: 500; }
+  .session .sub { color: var(--muted); font-size: 12px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .version { color: var(--muted); font: 11px var(--mono); padding: 10px 8px 0; }
+
+  main { overflow-y: auto; padding: 32px 40px 96px; min-width: 0; }
+  .page { max-width: 820px; margin: 0 auto; }
+  .page[hidden] { display: none; }
+  h1 { font-size: 28px; line-height: 1.15; letter-spacing: -.02em; margin: 0 0 6px; font-weight: 800; }
+  h2 { font-size: 15px; margin: 0 0 4px; font-weight: 650; }
+  .lede { color: var(--muted); margin: 0 0 24px; max-width: 60ch; }
+  .hint { color: var(--muted); font-size: 12.5px; margin: 0; }
+  .eyebrow { font: 11px/1 var(--mono); color: var(--muted); letter-spacing: .08em; text-transform: uppercase; margin-bottom: 10px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; }
+  .stack { display: grid; gap: 16px; }
+  .head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
+
+  .btn {
+    border: 1px solid var(--line); background: var(--surface-2); padding: 7px 14px; border-radius: 8px;
+    cursor: pointer; font-weight: 550; white-space: nowrap;
+  }
+  .btn:hover { border-color: #3a3a40; }
+  .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .btn.primary:hover { filter: brightness(1.05); }
+  .btn.small { padding: 5px 10px; font-size: 12.5px; }
+  .btn:disabled { opacity: .45; cursor: default; }
+  .link { background: none; border: 0; color: var(--accent); cursor: pointer; padding: 0; font-weight: 550; }
+
+  .seg { display: inline-flex; background: var(--surface); border: 1px solid var(--line); border-radius: 9px; padding: 3px; }
+  .seg button { border: 0; background: none; padding: 5px 12px; border-radius: 6px; cursor: pointer; color: var(--muted); font-weight: 550; }
+  .seg button[aria-pressed="true"] { background: var(--surface-2); color: var(--text); }
+
+  .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+  .tile { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; }
+  .tile .v { font: 700 30px/1.1 var(--mono); font-variant-numeric: tabular-nums; margin-top: 6px; }
+  .tile .k { color: var(--muted); font-size: 12.5px; }
+  .tile.hero .v { color: var(--accent); }
+
+  .chart { position: relative; height: 200px; margin-top: 14px; padding-left: 34px; }
+  .grid-line { position: absolute; left: 34px; right: 0; border-top: 1px solid var(--line); }
+  .grid-line span { position: absolute; left: -34px; top: -8px; width: 28px; text-align: right; font: 11px var(--mono); color: var(--muted); }
+  .bars { position: absolute; inset: 0 0 24px 34px; display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; align-items: end; }
+  .bar-slot {
+    height: 100%; display: flex; align-items: flex-end; justify-content: center;
+    background: none; border: 0; padding: 0; cursor: default; position: relative;
+  }
+  .bar { width: min(36px, 60%); background: var(--accent); border-radius: 4px 4px 0 0; min-height: 0; transition: height .4s ease; }
+  .bar.zero { background: var(--line); height: 2px !important; border-radius: 1px; }
+  .bar-slot:hover .bar, .bar-slot:focus-visible .bar { filter: brightness(1.1); }
+  .bar-slot:not(.today) .bar:not(.zero) { opacity: .55; }
+  .xlabels { position: absolute; left: 34px; right: 0; bottom: 0; display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; text-align: center; font: 11px var(--mono); color: var(--muted); }
+  .xlabels .today { color: var(--text); font-weight: 700; }
+  .tip {
+    position: absolute; pointer-events: none; background: var(--surface-2); border: 1px solid var(--line);
+    border-radius: 8px; padding: 8px 10px; font-size: 12px; white-space: nowrap; transform: translate(-50%, -100%);
+    box-shadow: 0 6px 24px rgba(0,0,0,.4); z-index: 2;
+  }
+  .tip b { font-family: var(--mono); }
+  .tip[hidden] { display: none; }
+  details.table { margin-top: 12px; }
+  details.table summary { color: var(--muted); font-size: 12.5px; cursor: pointer; }
+  table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 12.5px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 550; }
+  td.n { font-family: var(--mono); text-align: right; }
+
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .dist { display: grid; gap: 10px; margin-top: 14px; }
+  .dist-row { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items: center; }
+  .dist-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dist-name small { color: var(--muted); font: 11px var(--mono); margin-left: 6px; }
+  .dist-count { font: 12.5px var(--mono); color: var(--muted); }
+  .dist-track { grid-column: 1 / -1; height: 6px; background: var(--surface-2); border-radius: 3px; overflow: hidden; }
+  .dist-fill { height: 100%; background: var(--danger); border-radius: 3px; }
+  .feed { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 2px; max-height: 300px; overflow-y: auto; }
+  .feed li { display: grid; grid-template-columns: 44px 18px 1fr; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--surface-2); align-items: baseline; }
+  .feed time { font: 12px var(--mono); color: var(--muted); }
+  .feed .ic { text-align: center; }
+  .feed .txt { overflow-wrap: anywhere; }
+  .feed .txt q { color: var(--muted); }
+  .empty { color: var(--muted); padding: 18px 0 4px; }
+
+  .section { display: grid; gap: 12px; }
+  .section + .section { margin-top: 16px; }
+  .search { display: flex; gap: 8px; }
+  .input {
+    flex: 1; min-width: 0; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px;
+  }
+  .input:focus { border-color: var(--accent); outline: none; }
+  .input.num { flex: none; width: 84px; font-family: var(--mono); }
+  .applist { max-height: 340px; overflow-y: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); }
+  .app-row {
+    display: grid; grid-template-columns: 20px 28px 1fr; gap: 10px; align-items: center;
+    padding: 7px 12px; border-bottom: 1px solid var(--surface-2); cursor: pointer;
+  }
+  .app-row:last-child { border-bottom: 0; }
+  .app-row:hover { background: var(--surface); }
+  .app-row input { width: 16px; height: 16px; accent-color: var(--accent); margin: 0; }
+  .app-row img, .app-row .ph { width: 28px; height: 28px; }
+  .ph { display: grid; place-items: center; background: var(--surface-2); border-radius: 7px; font: 600 12px var(--mono); color: var(--muted); }
+  .app-row .meta { min-width: 0; }
+  .app-row .nm { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .app-row .id { display: block; font: 11px var(--mono); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tag { font: 10.5px var(--mono); color: var(--muted); border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; margin-left: 6px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px; background: var(--surface-2); border: 1px solid var(--line);
+    border-radius: 999px; padding: 4px 6px 4px 12px; font: 12.5px var(--mono);
+  }
+  .chip button { border: 0; background: none; color: var(--muted); cursor: pointer; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; padding: 0; }
+  .chip button:hover { background: var(--line); color: var(--text); }
+  .fields { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .field { display: grid; gap: 6px; }
+  .field label { font-size: 12.5px; color: var(--muted); }
+  .toggle { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+  .switch { position: relative; width: 40px; height: 24px; flex: none; }
+  .switch input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+  .switch span { position: absolute; inset: 0; background: var(--line); border-radius: 999px; transition: background .15s; pointer-events: none; }
+  .switch span::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: var(--text); transition: transform .15s; }
+  .switch input:checked + span { background: var(--accent); }
+  .switch input:checked + span::after { transform: translateX(16px); background: var(--accent-ink); }
+  .switch input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .badge { display: inline-flex; align-items: center; gap: 6px; font: 12px var(--mono); padding: 3px 9px; border-radius: 999px; border: 1px solid var(--line); }
+  .badge::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
+  .badge.ok { color: var(--accent); border-color: rgba(198,255,61,.35); }
+  .badge.ok::before { background: var(--accent); }
+  .badge.bad { color: var(--danger); border-color: rgba(255,77,46,.4); }
+  .badge.bad::before { background: var(--danger); }
+
+  .savebar {
+    position: fixed; left: 216px; right: 0; bottom: 0; display: flex; justify-content: center; padding: 14px; pointer-events: none;
+  }
+  .savebar .inner {
+    pointer-events: auto; display: flex; gap: 12px; align-items: center; background: var(--surface-2);
+    border: 1px solid var(--line); border-radius: 12px; padding: 10px 10px 10px 16px; box-shadow: 0 10px 40px rgba(0,0,0,.5);
+  }
+  .savebar[hidden] { display: none; }
+  .toast {
+    position: fixed; right: 20px; bottom: 20px; background: var(--surface-2); border: 1px solid var(--line);
+    border-left: 3px solid var(--accent); border-radius: 10px; padding: 10px 14px; max-width: 340px;
+    box-shadow: 0 10px 40px rgba(0,0,0,.5); font-size: 13px;
+  }
+  .toast.err { border-left-color: var(--danger); }
+  .toast[hidden] { display: none; }
+
+  .welcome-hero { display: grid; grid-template-columns: 1fr; gap: 22px; margin-bottom: 44px; }
+  .welcome-hero h1 { font-size: 38px; }
+  .welcome-hero h1 em { font-style: normal; color: var(--accent); }
+  .menubar {
+    position: relative; height: 38px; background: rgba(255,255,255,.06); border: 1px solid var(--line); border-radius: 10px;
+    display: flex; align-items: center; justify-content: flex-end; gap: 18px; padding: 0 16px; font-size: 13px; color: var(--muted);
+    overflow: visible;
+  }
+  .menubar .left { margin-right: auto; display: flex; gap: 16px; }
+  .menubar .left b { color: var(--text); }
+  .menubar .me {
+    position: relative; color: var(--text); font-size: 16px; padding: 2px 8px; border-radius: 6px;
+    background: rgba(198,255,61,.14); box-shadow: 0 0 0 2px var(--accent);
+  }
+  .menubar .me::after {
+    content: ""; position: absolute; inset: -6px; border-radius: 10px; border: 2px solid var(--accent); opacity: 0;
+    animation: ping 1.8s ease-out infinite;
+  }
+  @keyframes ping { 0% { opacity: .9; transform: scale(.8); } 100% { opacity: 0; transform: scale(1.35); } }
+  .callout {
+    position: absolute; top: calc(100% + 12px); left: 50%; transform: translateX(-50%);
+    color: var(--accent); font: 12px var(--mono); white-space: nowrap;
+  }
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; }
+  .step { display: flex; flex-direction: column; gap: 10px; }
+  .step .n { font: 700 12px var(--mono); color: var(--accent-ink); background: var(--accent); width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; }
+  .step p { margin: 0; color: var(--muted); font-size: 13px; flex: 1; }
+  .tips { margin: 0; padding-left: 18px; color: var(--muted); display: grid; gap: 6px; }
+  .tips b { color: var(--text); font-weight: 600; }
+  kbd { font: 11.5px var(--mono); background: var(--surface-2); border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; color: var(--text); }
+
+  @media (max-width: 880px) {
+    .tiles { grid-template-columns: repeat(2, 1fr); }
+    .two, .steps { grid-template-columns: 1fr; }
+    .fields { grid-template-columns: 1fr 1fr; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::after { animation: none !important; transition: none !important; }
+  }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+</style>
+</head>
+<body>
+<div class="app">
+  <nav class="side" aria-label="FocusLock">
+    <div class="brand"><img src="focuslock://localhost/app-icon.png" alt=""> FocusLock</div>
+    <button class="nav" data-page="stats"><span class="dot"></span>Today</button>
+    <button class="nav" data-page="settings"><span class="dot"></span>Settings</button>
+    <button class="nav" data-page="welcome"><span class="dot"></span>Welcome &amp; help</button>
+    <div class="spacer"></div>
+    <section class="session" aria-live="polite" aria-label="Focus session">
+      <div class="label" id="s-label">Session</div>
+      <div class="time idle" id="s-time">No session running</div>
+      <div class="sub" id="s-sub"></div>
+      <div class="row" id="s-actions">
+        <button class="btn primary small" data-start="25">Start 25 min</button>
+        <button class="btn small" data-start="50">50 min</button>
+      </div>
+    </section>
+    <div class="version" id="version"></div>
+  </nav>
+
+  <main id="main">
+    <section class="page" id="page-stats" hidden aria-labelledby="stats-title">
+      <div class="head">
+        <div>
+          <div class="eyebrow" id="stats-date"></div>
+          <h1 id="stats-title">Today</h1>
+        </div>
+        <div class="seg" role="group" aria-label="Period">
+          <button data-range="today" aria-pressed="true">Today</button>
+          <button data-range="week" aria-pressed="false">Last 7 days</button>
+        </div>
+      </div>
+      <div class="tiles">
+        <div class="tile hero"><div class="k">Focus time</div><div class="v" id="t-focus">0m</div></div>
+        <div class="tile"><div class="k">Sessions completed</div><div class="v" id="t-sessions">0</div></div>
+        <div class="tile"><div class="k">Blocked attempts</div><div class="v" id="t-blocked">0</div></div>
+        <div class="tile"><div class="k">Passes used</div><div class="v" id="t-passes">0</div></div>
+      </div>
+      <div class="stack">
+        <div class="card">
+          <h2>Focus minutes, last 7 days</h2>
+          <p class="hint">Minutes of completed or stopped sessions per day.</p>
+          <div class="chart" id="chart">
+            <div class="bars" id="bars"></div>
+            <div class="xlabels" id="xlabels" aria-hidden="true"></div>
+            <div class="tip" id="tip" hidden role="status"></div>
+          </div>
+          <details class="table">
+            <summary>Show as table</summary>
+            <table><thead><tr><th>Day</th><th>Focus min</th><th>Sessions</th><th>Blocked</th></tr></thead><tbody id="chart-table"></tbody></table>
+          </details>
+        </div>
+        <div class="two">
+          <div class="card">
+            <h2>Top distractions</h2>
+            <p class="hint" id="dist-hint">What FocusLock blocked most.</p>
+            <div class="dist" id="dist"></div>
+          </div>
+          <div class="card">
+            <h2>Today's activity</h2>
+            <p class="hint">Newest first.</p>
+            <ul class="feed" id="feed"></ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="page" id="page-settings" hidden aria-labelledby="settings-title">
+      <div class="head">
+        <div>
+          <div class="eyebrow">Settings</div>
+          <h1 id="settings-title">Your allowlist</h1>
+          <p class="lede" style="margin:0">During a session you can switch freely between these. Everything else gets bounced.</p>
+        </div>
+      </div>
+
+      <div class="card section">
+        <div>
+          <h2>Allowed apps</h2>
+          <p class="hint" id="always-hint"></p>
+        </div>
+        <div class="search">
+          <input class="input" id="app-search" type="search" placeholder="Search apps…" aria-label="Search apps" autocomplete="off">
+          <div class="seg" role="group" aria-label="Show">
+            <button data-appfilter="all" aria-pressed="true">All</button>
+            <button data-appfilter="on" aria-pressed="false">Allowed <span id="app-count"></span></button>
+          </div>
+        </div>
+        <div class="applist" id="applist" role="group" aria-label="Apps"><div class="empty" style="padding:14px">Loading apps…</div></div>
+        <form class="search" id="add-app">
+          <input class="input" id="add-app-id" placeholder="Not listed? Add a bundle ID, e.g. com.example.App" aria-label="Bundle ID" autocomplete="off" spellcheck="false">
+          <button class="btn" type="submit">Add</button>
+        </form>
+      </div>
+
+      <div class="card section">
+        <div>
+          <h2>Allowed websites</h2>
+          <p class="hint">Checked in Google Chrome. Each entry includes its subdomains. <code>github.com</code> also allows <code>gist.github.com</code>.</p>
+        </div>
+        <div class="chips" id="domains"></div>
+        <form class="search" id="add-domain">
+          <input class="input" id="add-domain-input" placeholder="docs.python.org (or paste a URL)" aria-label="Website" autocomplete="off" spellcheck="false">
+          <button class="btn" type="submit">Add</button>
+        </form>
+      </div>
+
+      <div class="card section">
+        <div>
+          <h2>Escape hatch</h2>
+          <p class="hint">"I need something else…" asks why, then unblocks everything for a short pass.</p>
+        </div>
+        <div class="fields">
+          <div class="field"><label for="f-passes">Passes per session</label><input class="input num" id="f-passes" type="number" min="0" max="20"></div>
+          <div class="field"><label for="f-passmin">Pass length (minutes)</label><input class="input num" id="f-passmin" type="number" min="1" max="30"></div>
+          <div class="field"><label for="f-reason">Minimum reason length</label><input class="input num" id="f-reason" type="number" min="0" max="200"></div>
+        </div>
+      </div>
+
+      <div class="card section">
+        <div class="toggle">
+          <div>
+            <h2>Chrome website checks</h2>
+            <p class="hint" id="chrome-hint">FocusLock needs permission to read Chrome's current tab.</p>
+          </div>
+          <span class="badge" id="chrome-badge">Checking…</span>
+        </div>
+        <div class="row" id="chrome-actions"></div>
+      </div>
+
+      <div class="card section">
+        <div class="toggle">
+          <div>
+            <h2>Show in Dock</h2>
+            <p class="hint">FocusLock always lives in the menu bar (🎯). Turn this on to also get a Dock icon.</p>
+          </div>
+          <label class="switch"><input type="checkbox" id="f-dock" aria-label="Show in Dock"><span></span></label>
+        </div>
+        <div class="toggle">
+          <div>
+            <h2>Chrome check interval</h2>
+            <p class="hint">How often the active tab is checked during a session.</p>
+          </div>
+          <div class="row"><input class="input num" id="f-poll" type="number" min="500" max="10000" step="100" aria-label="Interval in milliseconds"><span class="hint">ms</span></div>
+        </div>
+        <div class="row">
+          <button class="btn small" id="open-config" type="button">Open config file</button>
+          <button class="btn small" id="reveal-data" type="button">Show data folder</button>
+          <span class="hint" id="config-path"></span>
+        </div>
+      </div>
+    </section>
+
+    <section class="page" id="page-welcome" hidden aria-labelledby="welcome-title">
+      <div class="welcome-hero">
+        <div>
+          <div class="eyebrow">Welcome to FocusLock</div>
+          <h1 id="welcome-title">FocusLock lives in your <em>menu bar</em>.</h1>
+          <p class="lede">There's no big app window to keep open. Look for <b>🎯</b> at the top right of your screen. That's where you start sessions, get a pass, and open this window again.</p>
+        </div>
+        <div aria-hidden="true">
+          <div class="menubar">
+            <div class="left"><b>Code</b><span>File</span><span>Edit</span><span>View</span></div>
+            <span>◐</span><span>◔</span><span class="me">🎯<span class="callout">↑ click this</span></span><span>▮▮▯</span><span id="mb-clock">Thu 14:02</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="steps">
+        <div class="card step">
+          <span class="n">1</span>
+          <h2>Pick your allowed apps</h2>
+          <p>Your editor, PDF reader, terminal… Anything not on the list gets bounced during a session.</p>
+          <div><button class="btn small" data-go="settings">Choose apps</button></div>
+        </div>
+        <div class="card step">
+          <span class="n">2</span>
+          <h2>Let it check Chrome</h2>
+          <p id="w-chrome-text">Allow FocusLock to read Chrome's current tab, so off-list sites get blocked.</p>
+          <div class="row" id="w-chrome-actions"></div>
+        </div>
+        <div class="card step">
+          <span class="n">3</span>
+          <h2>Start a session</h2>
+          <p>The menu bar shows <kbd>🔒 24:59</kbd> while you focus. You'll get a notification when it ends.</p>
+          <div class="row">
+            <button class="btn primary small" data-start="25">Start 25 min</button>
+            <button class="btn small" data-start="50">50 min</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Good to know</h2>
+        <ul class="tips">
+          <li><b>Off-list apps bounce back</b> to the last allowed app you used. Finder, Spotlight and System Settings always work.</li>
+          <li><b>Really need something?</b> 🎯 → "I need something else…", type a reason, and get a short pass.</li>
+          <li><b>"Stop session"</b> is the no-questions emergency exit. <b>Quit</b> during a session asks for a reason.</li>
+          <li><b>Settings saved during a session</b> apply to your next one.</li>
+          <li><b>Everything stays on your Mac.</b> No account, no tracking. Stats come from a local log file.</li>
+        </ul>
+        <div class="row" style="margin-top:16px"><button class="btn" data-go="stats">Got it</button></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div class="savebar" id="savebar" hidden>
+  <div class="inner">
+    <span id="savebar-text">Unsaved changes</span>
+    <button class="btn small" id="revert" type="button">Revert</button>
+    <button class="btn primary small" id="save" type="button">Save</button>
+  </div>
+</div>
+<div class="toast" id="toast" hidden role="status" aria-live="polite"></div>
+
+<script>
+"use strict";
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const post = (type, extra = {}) => window.ipc.postMessage(JSON.stringify({ type, ...extra }));
+
+  function el(tag, attrs = {}, ...children) {
+    const e = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs)) {
+      if (v == null || v === false) continue;
+      if (k === "class") e.className = v;
+      else if (k.startsWith("on")) e.addEventListener(k.slice(2), v);
+      else e.setAttribute(k, v === true ? "" : v);
+    }
+    for (const c of children.flat()) if (c != null) e.append(c);
+    return e;
+  }
+
+  const S = {
+    page: "stats",
+    range: "today",
+    session: null,
+    report: null,
+    names: {},
+    apps: null,
+    saved: null,
+    draft: null,
+    alwaysAllowed: [],
+    chrome: null,
+    appFilter: "all",
+  };
+
+  let toastTimer;
+  function toast(text, err = false) {
+    const t = $("toast");
+    t.textContent = text;
+    t.className = "toast" + (err ? " err" : "");
+    t.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => (t.hidden = true), 3500);
+  }
+
+  window.FL = {
+    receive(m) {
+      switch (m.type) {
+        case "state":
+          S.session = m.session;
+          $("version").textContent = "v" + m.version + (m.fast ? " · fast test mode" : "");
+          renderSession();
+          break;
+        case "config":
+          S.saved = m.config;
+          S.draft = structuredClone(m.config);
+          S.alwaysAllowed = m.always_allowed;
+          $("config-path").textContent = m.config_path.replace(/^\/Users\/[^/]+/, "~");
+          renderSettings();
+          break;
+        case "stats":
+          S.report = m.report;
+          S.names = m.names;
+          renderStats();
+          break;
+        case "apps":
+          S.apps = m.apps;
+          renderApps();
+          break;
+        case "saved":
+          if (m.ok) toast(m.applies_next_session ? "Saved. Applies to your next session." : "Saved.");
+          else toast("Couldn't save: " + (m.error || "unknown error"), true);
+          break;
+        case "chrome_permission":
+          S.chrome = m.status;
+          renderChrome();
+          break;
+        case "go":
+          go(m.page);
+          break;
+      }
+    },
+  };
+
+  const PAGES = ["stats", "settings", "welcome"];
+  function go(page) {
+    if (!PAGES.includes(page)) page = "stats";
+    S.page = page;
+    if (location.hash !== "#" + page) history.replaceState(null, "", "#" + page);
+    for (const p of PAGES) $("page-" + p).hidden = p !== page;
+    for (const b of document.querySelectorAll(".nav")) {
+      if (b.dataset.page === page) b.setAttribute("aria-current", "page");
+      else b.removeAttribute("aria-current");
+    }
+    $("main").scrollTop = 0;
+    if (page === "stats") post("get_stats");
+    if (page === "settings" && !S.apps) post("list_apps");
+    if (page === "settings" || page === "welcome") post("chrome_permission", { ask: false });
+    renderSaveBar();
+  }
+
+  document.addEventListener("click", (e) => {
+    const t = e.target.closest("[data-page],[data-go],[data-start]");
+    if (!t) return;
+    if (t.dataset.page) go(t.dataset.page);
+    if (t.dataset.go) go(t.dataset.go);
+    if (t.dataset.start) post("start_session", { minutes: Number(t.dataset.start) });
+  });
+
+  const clock = (secs) => {
+    const s = Math.max(0, Math.ceil(secs));
+    const m = Math.floor(s / 60), r = s % 60;
+    return String(m).padStart(2, "0") + ":" + String(r).padStart(2, "0");
+  };
+  function renderSession() {
+    const s = S.session;
+    const time = $("s-time"), sub = $("s-sub");
+    for (const b of document.querySelectorAll("[data-start]")) b.disabled = !!s;
+    $("s-actions").hidden = !!s;
+    if (!s) {
+      $("s-label").textContent = "Session";
+      time.textContent = "No session running";
+      time.className = "time idle";
+      sub.textContent = "";
+      return;
+    }
+    time.className = "time";
+    if (s.pass_left_secs != null) {
+      $("s-label").textContent = "Pass active";
+      time.textContent = "🎟 " + clock(s.pass_left_secs);
+      sub.textContent = "Nothing is blocked. Session: " + clock(s.left_secs) + " left";
+    } else {
+      $("s-label").textContent = s.minutes + "-min session";
+      time.textContent = "🔒 " + clock(s.left_secs);
+      sub.textContent = s.passes_left + (s.passes_left === 1 ? " pass" : " passes") + " left · stop from the 🎯 menu";
+    }
+  }
+
+  const fmtMinutes = (m) => (m >= 60 ? Math.floor(m / 60) + "h " + (m % 60) + "m" : m + "m");
+  const displayName = (d) => (d.kind === "app" ? S.names[d.id] || d.id : d.id);
+
+  document.querySelectorAll("[data-range]").forEach((b) =>
+    b.addEventListener("click", () => {
+      S.range = b.dataset.range;
+      document.querySelectorAll("[data-range]").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+      renderStats();
+    })
+  );
+
+  function renderStats() {
+    const r = S.report;
+    if (!r) return;
+    const t = S.range === "today" ? r.today : r.week;
+    const todayDate = new Date(r.days[r.days.length - 1].date + "T12:00:00");
+    $("stats-date").textContent = todayDate.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
+    $("stats-title").textContent = S.range === "today" ? "Today" : "Last 7 days";
+    $("t-focus").textContent = fmtMinutes(t.focus_minutes);
+    $("t-sessions").textContent = t.sessions_completed;
+    $("t-blocked").textContent = t.blocked_attempts;
+    $("t-passes").textContent = t.passes_used;
+    renderChart(r.days);
+    renderDistractions(t.top_distractions);
+    renderFeed(r.recent);
+  }
+
+  function niceMax(v) {
+    if (v <= 30) return 30;
+    const steps = [60, 90, 120, 180, 240, 300, 360, 480, 600, 720];
+    return steps.find((s) => s >= v) || Math.ceil(v / 120) * 120;
+  }
+
+  function renderChart(days) {
+    const max = niceMax(Math.max(...days.map((d) => d.focus_minutes)));
+    const chart = $("chart"), bars = $("bars"), labels = $("xlabels"), table = $("chart-table");
+    chart.querySelectorAll(".grid-line").forEach((g) => g.remove());
+    for (const frac of [0, 0.5, 1]) {
+      const line = el("div", { class: "grid-line" }, el("span", {}, String(Math.round(max * frac))));
+      line.style.top = `calc((100% - 24px) * ${1 - frac})`;
+      chart.prepend(line);
+    }
+    bars.replaceChildren();
+    labels.replaceChildren();
+    table.replaceChildren();
+    days.forEach((d, i) => {
+      const isToday = i === days.length - 1;
+      const date = new Date(d.date + "T12:00:00");
+      const long = date.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
+      const desc = `${long}: ${d.focus_minutes} focus minutes, ${d.sessions_completed} sessions completed, ${d.blocked_attempts} blocked`;
+      const bar = el("div", { class: "bar" + (d.focus_minutes === 0 ? " zero" : "") });
+      bar.style.height = (d.focus_minutes / max) * 100 + "%";
+      const slot = el("button", { class: "bar-slot" + (isToday ? " today" : ""), type: "button", "aria-label": desc }, bar);
+      const show = () => {
+        const tip = $("tip");
+        tip.replaceChildren(
+          el("div", {}, long + (isToday ? " · today" : "")),
+          el("div", {}, el("b", {}, fmtMinutes(d.focus_minutes)), " focus"),
+          el("div", { style: "color:var(--muted)" }, `${d.sessions_completed} completed · ${d.blocked_attempts} blocked`)
+        );
+        const cr = chart.getBoundingClientRect(), sr = slot.getBoundingClientRect(), br = bar.getBoundingClientRect();
+        tip.style.left = sr.left - cr.left + sr.width / 2 + "px";
+        tip.style.top = Math.min(br.top, sr.bottom - 4) - cr.top - 8 + "px";
+        tip.hidden = false;
+      };
+      const hide = () => ($("tip").hidden = true);
+      slot.addEventListener("mouseenter", show);
+      slot.addEventListener("focus", show);
+      slot.addEventListener("mouseleave", hide);
+      slot.addEventListener("blur", hide);
+      bars.append(slot);
+      labels.append(el("span", { class: isToday ? "today" : "" }, isToday ? "Today" : d.weekday));
+      table.append(el("tr", {}, el("td", {}, long), el("td", { class: "n" }, String(d.focus_minutes)),
+        el("td", { class: "n" }, String(d.sessions_completed)), el("td", { class: "n" }, String(d.blocked_attempts))));
+    });
+  }
+
+  function renderDistractions(list) {
+    const box = $("dist");
+    box.replaceChildren();
+    $("dist-hint").textContent = S.range === "today" ? "What FocusLock blocked most today." : "What FocusLock blocked most this week.";
+    if (!list.length) {
+      box.append(el("div", { class: "empty" }, "Nothing blocked. Nice focus 🎉"));
+      return;
+    }
+    const max = list[0].count;
+    for (const d of list) {
+      const fill = el("div", { class: "dist-fill" });
+      fill.style.width = (d.count / max) * 100 + "%";
+      box.append(el("div", { class: "dist-row" },
+        el("div", { class: "dist-name" }, displayName(d), el("small", {}, d.kind)),
+        el("div", { class: "dist-count" }, d.count + "×"),
+        el("div", { class: "dist-track", "aria-hidden": "true" }, fill)));
+    }
+  }
+
+  function describe(e) {
+    switch (e.event) {
+      case "session_start": return ["▶", [`Started a ${e.minutes}-min session`]];
+      case "session_end":
+        if (e.how === "completed") return ["✓", [`Completed a ${e.planned_minutes}-min session`]];
+        if (e.how === "quit") return ["■", [`Quit after ${e.focused_minutes} min`]];
+        return ["■", [`Stopped after ${e.focused_minutes} of ${e.planned_minutes} min`]];
+      case "blocked_app": return ["✕", ["Bounced ", el("b", {}, S.names[e.bundle_id] || e.bundle_id)]];
+      case "blocked_url": return ["✕", ["Blocked ", el("b", {}, e.domain)]];
+      case "pass_granted": return ["🎟", ["Pass: ", el("q", {}, e.reason)]];
+      case "quit_with_reason": return ["⏻", ["Quit: ", el("q", {}, e.reason)]];
+      default: return ["·", [e.event]];
+    }
+  }
+
+  function renderFeed(recent) {
+    const feed = $("feed");
+    feed.replaceChildren();
+    if (!recent.length) {
+      feed.append(el("li", { class: "empty", style: "display:block;border:0" }, "No activity yet today. Start a session from the sidebar."));
+      return;
+    }
+    for (const r of recent) {
+      const [icon, parts] = describe(r);
+      feed.append(el("li", {}, el("time", {}, r.time), el("span", { class: "ic", "aria-hidden": "true" }, icon), el("span", { class: "txt" }, ...parts)));
+    }
+  }
+  setInterval(() => { if (S.page === "stats" && !document.hidden) post("get_stats"); }, 30000);
+
+  const dirty = () => S.saved && JSON.stringify(S.saved) !== JSON.stringify(S.draft);
+
+  function renderSaveBar() {
+    const bar = $("savebar");
+    bar.hidden = !(S.page === "settings" && dirty());
+    $("savebar-text").textContent = S.session ? "Unsaved changes (apply to your next session)" : "Unsaved changes";
+  }
+
+  function renderSettings() {
+    if (!S.draft) return;
+    const c = S.draft;
+    $("f-passes").value = c.max_passes;
+    $("f-passmin").value = c.pass_minutes;
+    $("f-reason").value = c.min_reason_chars;
+    $("f-poll").value = c.chrome_poll_ms;
+    $("f-dock").checked = c.show_dock_icon;
+    $("always-hint").textContent = "Always allowed, no matter what: FocusLock, Finder, Spotlight, System Settings and macOS permission dialogs.";
+    renderDomains();
+    renderApps();
+    renderSaveBar();
+  }
+
+  function renderDomains() {
+    const box = $("domains");
+    box.replaceChildren();
+    if (!S.draft.allowed_domains.length) box.append(el("span", { class: "hint" }, "No websites allowed. Every site in Chrome will be blocked."));
+    for (const d of S.draft.allowed_domains) {
+      box.append(el("span", { class: "chip" }, d,
+        el("button", { type: "button", "aria-label": "Remove " + d, onclick: () => {
+          S.draft.allowed_domains = S.draft.allowed_domains.filter((x) => x !== d);
+          renderDomains(); renderSaveBar();
+        } }, "✕")));
+    }
+  }
+
+  function normalizeDomain(input) {
+    let d = input.trim().toLowerCase();
+    const i = d.indexOf("://");
+    if (i >= 0) d = d.slice(i + 3);
+    d = d.split(/[/?#:]/)[0].replace(/^\.+|\.+$/g, "").replace(/^www\./, "");
+    return /^[a-z0-9.-]+$/.test(d) ? d : null;
+  }
+
+  $("add-domain").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const input = $("add-domain-input");
+    const d = normalizeDomain(input.value);
+    if (!d) { toast("That doesn't look like a website.", true); return; }
+    if (!S.draft.allowed_domains.includes(d)) S.draft.allowed_domains.push(d);
+    input.value = "";
+    renderDomains(); renderSaveBar();
+  });
+
+  function setAllowed(id, on) {
+    const list = S.draft.allowed_apps;
+    if (on && !list.includes(id)) list.push(id);
+    if (!on) S.draft.allowed_apps = list.filter((x) => x !== id);
+    renderSaveBar();
+    $("app-count").textContent = "(" + S.draft.allowed_apps.length + ")";
+  }
+
+  function renderApps() {
+    const box = $("applist");
+    if (!S.apps || !S.draft) return;
+    const q = $("app-search").value.trim().toLowerCase();
+    const allowed = new Set(S.draft.allowed_apps);
+    $("app-count").textContent = "(" + allowed.size + ")";
+    const installed = new Set(S.apps.map((a) => a.bundle_id));
+    const missing = S.draft.allowed_apps.filter((id) => !installed.has(id)).map((id) => ({ name: id, bundle_id: id, path: null }));
+    let rows = [...missing, ...S.apps].filter((a) => !S.alwaysAllowed.includes(a.bundle_id));
+    if (S.appFilter === "on") rows = rows.filter((a) => allowed.has(a.bundle_id));
+    if (q) rows = rows.filter((a) => a.name.toLowerCase().includes(q) || a.bundle_id.toLowerCase().includes(q));
+    rows.sort((a, b) => (allowed.has(b.bundle_id) - allowed.has(a.bundle_id)) || a.name.localeCompare(b.name));
+
+    box.replaceChildren();
+    if (!rows.length) { box.append(el("div", { class: "empty", style: "padding:14px" }, q ? "No apps match." : "No allowed apps yet.")); return; }
+    for (const a of rows) {
+      const id = "app-" + a.bundle_id.replace(/[^a-z0-9]/gi, "_");
+      const icon = a.path
+        ? el("img", { src: "focuslock://localhost/icon?path=" + encodeURIComponent(a.path), alt: "", loading: "lazy", onerror: (e) => e.target.replaceWith(placeholder(a.name)) })
+        : placeholder(a.name);
+      box.append(el("label", { class: "app-row", for: id },
+        el("input", { type: "checkbox", id, checked: allowed.has(a.bundle_id), onchange: (e) => setAllowed(a.bundle_id, e.target.checked) }),
+        icon,
+        el("span", { class: "meta" },
+          el("span", { class: "nm" }, a.name, a.path ? null : el("span", { class: "tag" }, "not installed")),
+          el("span", { class: "id" }, a.bundle_id))));
+    }
+  }
+  const placeholder = (name) => el("span", { class: "ph", "aria-hidden": "true" }, (name[0] || "?").toUpperCase());
+
+  $("app-search").addEventListener("input", renderApps);
+  document.querySelectorAll("[data-appfilter]").forEach((b) =>
+    b.addEventListener("click", () => {
+      S.appFilter = b.dataset.appfilter;
+      document.querySelectorAll("[data-appfilter]").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+      renderApps();
+    })
+  );
+  $("add-app").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const input = $("add-app-id");
+    const id = input.value.trim();
+    if (!/^[A-Za-z0-9.-]+$/.test(id) || !id.includes(".")) { toast("Bundle IDs look like com.example.App.", true); return; }
+    setAllowed(id, true);
+    input.value = "";
+    renderApps();
+  });
+
+  const bindNumber = (id, key) => $(id).addEventListener("input", (e) => {
+    const n = parseInt(e.target.value, 10);
+    if (!Number.isNaN(n)) { S.draft[key] = n; renderSaveBar(); }
+  });
+  bindNumber("f-passes", "max_passes");
+  bindNumber("f-passmin", "pass_minutes");
+  bindNumber("f-reason", "min_reason_chars");
+  bindNumber("f-poll", "chrome_poll_ms");
+  $("f-dock").addEventListener("change", (e) => { S.draft.show_dock_icon = e.target.checked; renderSaveBar(); });
+
+  $("save").addEventListener("click", () => post("save_config", { config: S.draft }));
+  $("revert").addEventListener("click", () => { S.draft = structuredClone(S.saved); renderSettings(); });
+  $("open-config").addEventListener("click", () => post("open_config_file"));
+  $("reveal-data").addEventListener("click", () => post("reveal_data"));
+
+  function renderChrome() {
+    const st = S.chrome;
+    const info = {
+      granted: ["ok", "Allowed", "FocusLock can check Chrome's current tab during sessions."],
+      denied: ["bad", "Not allowed", "Turn on FocusLock → Google Chrome in System Settings → Privacy & Security → Automation."],
+      not_determined: ["", "Not asked yet", "Click Allow, then choose OK in the macOS prompt."],
+      not_running: ["", "Chrome isn't open", "Open Google Chrome, then click Check again. FocusLock never launches Chrome itself."],
+      error: ["bad", "Unknown", "Couldn't check. If Chrome is installed, try again with Chrome open."],
+    }[st] || ["", "Checking…", "FocusLock needs permission to read Chrome's current tab."];
+    const badge = $("chrome-badge");
+    badge.className = "badge " + info[0];
+    badge.textContent = info[1];
+    $("chrome-hint").textContent = info[2];
+    $("w-chrome-text").textContent = st === "granted" ? "Done. Chrome checks are allowed." : info[2];
+
+    const actions = () => {
+      if (st === "granted") return [];
+      if (st === "denied") return [el("button", { class: "btn small", type: "button", onclick: () => post("open_automation_settings") }, "Open Automation settings")];
+      if (st === "not_determined") return [el("button", { class: "btn primary small", type: "button", onclick: () => post("chrome_permission", { ask: true }) }, "Allow")];
+      return [el("button", { class: "btn small", type: "button", onclick: () => post("chrome_permission", { ask: false }) }, "Check again")];
+    };
+    $("chrome-actions").replaceChildren(...actions());
+    $("w-chrome-actions").replaceChildren(...actions());
+  }
+
+  const now = new Date();
+  $("mb-clock").textContent = now.toLocaleDateString(undefined, { weekday: "short" }) + " " +
+    now.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+
+  go((location.hash || "#stats").slice(1));
+  post("ready");
+})();
+</script>
+</body>
+</html>
